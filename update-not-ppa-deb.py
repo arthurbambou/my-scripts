@@ -37,22 +37,77 @@ configFile.close()
 print("Config read")
 
 
+def getVersionFromDebInfo(info: str):
+    lines = info.replace("\\n", "\n").split("\n")
+    versionStr = "0.0.0"
+    version: [int] = []
+    for i in lines:
+        if i.startswith("Version: "):
+            i = i.replace("Version: ", "")
+            versionStr = i
+            break
 
-def installDeb(id, url):
-        print("Downloading " + id + ".deb")
-        subprocess.run(["curl", url, "-s", "-L", "-J",
-                        "-o", id + ".deb", "--next"
-                        ], cwd=CacheFolder)
+    for i in versionStr.split("."):
+        version.append(int(i))
+
+    return version
+
+
+def updateAvailable(old: [int], new: [int]):
+    available = False
+
+    for i in range(0, len(old)):
+        if new[i] > old[i]:
+            available = True
+            break
+
+    return available
+
+
+def prettifyVersion(version):
+    string = ""
+    for i in version:
+        string += str(i) + "."
+
+    return string[:len(string) - 1]
+
+
+def installDeb(id, url, install):
+    fileName = id + ".deb"
+    print("Downloading " + fileName)
+    subprocess.run(["curl", url, "-s", "-L", "-J",
+                    "-o", fileName, "--next"
+                    ], cwd=CacheFolder)
+    print("Done")
+    if install:
+        print("Installing " + fileName)
+        subprocess.run(["sudo", "dpkg", "-i", fileName], cwd=CacheFolder)
         print("Done")
-        print("Installing " + id + ".deb")
-        subprocess.run(["sudo", "dpkg", "-i", id + ".deb"], cwd=CacheFolder)
-        print("Done")
-        print("Cleaning cache")
-        subprocess.run(["rm", id + ".deb"], cwd=CacheFolder)
-        print("Done")
+    else:
+        print("Extracting version from " + fileName)
+        subprocess.run(["ar", "x", fileName], cwd=CacheFolder)
+        subprocess.run(["tar", "-f", "control.tar.gz", "-x"], cwd=CacheFolder)
+        infoFile = open(path.join(CacheFolder, "control"), 'r')
+        infoFileContent = str(infoFile.read())
+        downloadedVersion = getVersionFromDebInfo(infoFileContent)
+        installedInfoFile = subprocess.run(["dpkg", "--status", id], stdout=subprocess.PIPE).stdout
+        installedVersion = getVersionFromDebInfo(str(installedInfoFile)[2:])
 
-
-
+        shouldUpdate = updateAvailable(installedVersion, downloadedVersion)
+        print(prettifyVersion(downloadedVersion))
+        if shouldUpdate:
+            print("A new version is available (" + prettifyVersion(downloadedVersion)
+                  + "), current version is " + prettifyVersion(installedVersion))
+            choice = input("Install? [Y/n] ")
+            if not (choice.lower() == "n"):
+                print("Installing " + fileName)
+                subprocess.run(["sudo", "dpkg", "-i", fileName], cwd=CacheFolder)
+                print("Done")
+        else:
+            print("Up to date")
+    print("Cleaning cache")
+    subprocess.run(["rm", "*"], cwd=CacheFolder)
+    print("Done")
 
 
 def readConfig():
@@ -88,7 +143,7 @@ def install():
         deb_id = args[2]
         deb_url = args[3]
         config["debs"].append({"id": deb_id, "url": deb_url})
-        installDeb(deb_id, deb_url)
+        installDeb(deb_id, deb_url, True)
         writeConfig()
     else:
         print("Not enough arguments!")
@@ -102,7 +157,7 @@ def update():
     print("Upgrading not-ppa-debs:")
     global config
     for i in config["debs"]:
-        installDeb(i["id"], i["url"])
+        installDeb(i["id"], i["url"], False)
 
 
 command_switch = {
