@@ -1,6 +1,7 @@
 import json
 import os
 import os.path as path
+import shutil
 import sys
 import subprocess
 
@@ -75,7 +76,7 @@ def prettifyVersion(version):
 def installDeb(id, url, install):
     fileName = id + ".deb"
     print("Downloading " + fileName)
-    subprocess.run(["curl", url, "-s", "-L", "-J",
+    subprocess.run(["curl", "--url", url, "-s", "-L", "-J",
                     "-o", fileName, "--next"
                     ], cwd=CacheFolder)
     print("Done")
@@ -94,7 +95,6 @@ def installDeb(id, url, install):
         installedVersion = getVersionFromDebInfo(str(installedInfoFile)[2:])
 
         shouldUpdate = updateAvailable(installedVersion, downloadedVersion)
-        print(prettifyVersion(downloadedVersion))
         if shouldUpdate:
             print("A new version is available (" + prettifyVersion(downloadedVersion)
                   + "), current version is " + prettifyVersion(installedVersion))
@@ -106,7 +106,16 @@ def installDeb(id, url, install):
         else:
             print("Up to date")
     print("Cleaning cache")
-    subprocess.run(["rm", "*"], cwd=CacheFolder)
+    folder = CacheFolder
+    for filename in os.listdir(folder):
+        file_path = os.path.join(folder, filename)
+        try:
+            if os.path.isfile(file_path) or os.path.islink(file_path):
+                os.unlink(file_path)
+            elif os.path.isdir(file_path):
+                shutil.rmtree(file_path)
+        except Exception as e:
+            print('Failed to delete %s. Reason: %s' % (file_path, e))
     print("Done")
 
 
@@ -156,8 +165,10 @@ def remove():
 def update():
     print("Upgrading not-ppa-debs:")
     global config
-    for i in config["debs"]:
-        installDeb(i["id"], i["url"], False)
+    for i in range(0, len(config["debs"])):
+        entry = config["debs"][i]
+        print("[" + str(i + 1) + "/" + str(len(config["debs"])) + "] Checking updates for " + entry["id"])
+        installDeb(entry["id"], entry["url"], False)
 
 
 command_switch = {
