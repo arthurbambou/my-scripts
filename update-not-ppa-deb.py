@@ -137,7 +137,11 @@ def writeConfig():
 
 
 def help():
-    print("HELP")
+    print("list: Show the list of packages in your config file.")
+    print("install <deb_id> <download_url>:\n- install package from provided url\n- 'deb_id' must be the same as the "
+          "id of the package in dpkg\n- add the package to config")
+    print("remove <deb_id>: delete package with id 'deb_id' from config")
+    print("update: check update for all packages in config")
 
 
 def list():
@@ -159,7 +163,15 @@ def install():
 
 
 def remove():
-    print("remove")
+    if len(args) > 2:
+        id = args[2]
+        for i in range(0, config["deb"]):
+            if config["deb"][i]["id"] == id:
+                config["deb"].pop(i)
+                writeConfig()
+                break
+    else:
+        print("Not enough arguments!")
 
 
 def update():
